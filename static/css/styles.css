@@ -1,0 +1,198 @@
+/* ============================================================
+   Network Mapper – CSS
+   Dark-themed, responsive layout.
+   ============================================================ */
+
+/* ── Reset / base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0d1117;
+  --surface:   #161b22;
+  --border:    #30363d;
+  --text:      #c9d1d9;
+  --muted:     #8b949e;
+  --primary:   #4a9eff;
+  --accent:    #58c73e;
+  --danger:    #f85149;
+  --warning:   #d29922;
+  --link-clr:  #3d4d61;
+
+  /* Node colours */
+  --col-local:   #f0c040;
+  --col-gateway: #ff7c5a;
+  --col-hop1:    #4a9eff;
+  --col-hop2:    #5ba88b;
+  --col-hop3:    #9275c4;
+  --col-focal:   #ff5fd8;
+}
+
+html, body { height: 100%; background: var(--bg); color: var(--text);
+             font-family: "Segoe UI", system-ui, sans-serif; font-size: 14px; }
+
+/* ── Layout ── */
+#app { display: flex; height: 100vh; overflow: hidden; }
+
+/* ── Sidebar ── */
+#sidebar {
+  width: 270px;
+  min-width: 220px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.brand {
+  display: flex; align-items: center; gap: 10px;
+  padding: 18px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.brand-icon { font-size: 24px; }
+.brand h1 { font-size: 16px; font-weight: 600; letter-spacing: .3px; color: var(--primary); }
+
+.panel {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.panel h2 { font-size: 11px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 1px; color: var(--muted); margin-bottom: 10px; }
+
+/* Fields */
+.field { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.field label { min-width: 80px; color: var(--muted); font-size: 12px; }
+.field input[type=range] { flex: 1; accent-color: var(--primary); }
+.field input[type=text] {
+  flex: 1; background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); border-radius: 4px; padding: 4px 8px; font-size: 12px;
+}
+.field input[type=text]:focus { outline: none; border-color: var(--primary); }
+
+/* Buttons */
+.btn-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.btn { border: none; cursor: pointer; border-radius: 6px;
+       padding: 6px 12px; font-size: 12px; font-weight: 500; transition: opacity .15s; }
+.btn:hover { opacity: .85; }
+.btn-primary   { background: var(--primary);  color: #fff; }
+.btn-secondary { background: #2d3748; color: var(--text); border: 1px solid var(--border); }
+.btn-danger    { background: var(--danger);   color: #fff; }
+.btn:disabled  { opacity: .4; cursor: not-allowed; }
+
+/* Scan status */
+.status-bar {
+  margin-top: 10px; background: var(--bg); border-radius: 4px;
+  overflow: hidden; border: 1px solid var(--border); position: relative; height: 22px;
+}
+.status-bar.hidden { display: none; }
+.progress-inner { height: 100%; background: var(--primary); width: 0%;
+                  transition: width .4s ease; opacity: .4; }
+#scan-msg { position: absolute; inset: 0; display: flex; align-items: center;
+            justify-content: center; font-size: 11px; color: var(--text); }
+
+/* Legend */
+.legend-row { display: flex; align-items: center; gap: 8px;
+              font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+.legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.legend-dot.local    { background: var(--col-local);   }
+.legend-dot.gateway  { background: var(--col-gateway); }
+.legend-dot.hop1     { background: var(--col-hop1);    }
+.legend-dot.hop2     { background: var(--col-hop2);    }
+.legend-dot.hop3plus { background: var(--col-hop3);    }
+.legend-dot.focal    { background: var(--col-focal); box-shadow: 0 0 6px var(--col-focal); }
+
+/* Node details */
+#node-details p.muted { color: var(--muted); font-size: 12px; }
+.detail-row { display: flex; justify-content: space-between; gap: 8px;
+              font-size: 12px; margin-bottom: 4px; }
+.detail-row .dk { color: var(--muted); }
+.detail-row .dv { color: var(--text); word-break: break-all; text-align: right; }
+#btn-set-focal { margin-top: 10px; width: 100%; }
+
+/* Stats */
+.stat-row { display: flex; justify-content: space-between;
+            font-size: 12px; margin-bottom: 4px; color: var(--muted); }
+.stat-row strong { color: var(--text); }
+
+/* ── Canvas ── */
+#canvas-area {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg);
+  background-image:
+    radial-gradient(circle, #1c2333 0%, #0d1117 70%);
+}
+
+#graph-svg { width: 100%; height: 100%; display: block; }
+
+/* Toolbar */
+#toolbar {
+  position: absolute; top: 12px; left: 12px;
+  display: flex; align-items: center; gap: 6px; z-index: 10;
+}
+.icon-btn {
+  width: 32px; height: 32px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); cursor: pointer; font-size: 16px; line-height: 1;
+  transition: background .15s;
+}
+.icon-btn:hover { background: var(--border); }
+#hint { font-size: 11px; color: var(--muted); margin-left: 6px; }
+
+/* ── Empty state ── */
+#empty-state {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 12px;
+  pointer-events: none;
+}
+#empty-state .empty-icon { font-size: 56px; opacity: .4; }
+#empty-state h3 { font-size: 18px; color: var(--text); opacity: .5; }
+#empty-state p  { font-size: 13px; color: var(--muted); max-width: 320px; text-align: center; }
+#empty-state em { color: var(--primary); font-style: normal; }
+#empty-state.hidden { display: none; }
+
+/* ── D3 graph elements ── */
+.link { stroke: var(--link-clr); stroke-width: 1.5px; stroke-opacity: .7; }
+.link.highlight { stroke: var(--primary); stroke-width: 2.5px; stroke-opacity: 1; }
+
+.node-group { cursor: pointer; }
+.node-group .node-circle {
+  stroke-width: 2px; stroke: rgba(255,255,255,.15);
+  transition: r .2s ease;
+}
+.node-group.focal .node-circle {
+  stroke: var(--col-focal);
+  stroke-width: 3px;
+  filter: url(#glow);
+}
+.node-group:hover .node-circle { stroke: #fff; stroke-width: 2.5px; }
+
+.node-label {
+  font-size: 10px; fill: var(--muted);
+  text-anchor: middle; pointer-events: none;
+  dominant-baseline: central;
+}
+.node-group.focal .node-label,
+.node-group:hover .node-label { fill: var(--text); }
+
+/* Tooltip */
+#tooltip {
+  position: fixed;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 100;
+  max-width: 220px;
+  display: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,.5);
+}
+#tooltip .tt-ip   { font-weight: 600; color: var(--primary); }
+#tooltip .tt-host { color: var(--text); }
+#tooltip .tt-meta { color: var(--muted); margin-top: 3px; font-size: 11px; }
