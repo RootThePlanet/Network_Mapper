@@ -36,7 +36,10 @@ def get_local_interfaces() -> List[Dict]:
     """Return local network interfaces with ip/netmask/network information."""
     interfaces: List[Dict] = []
     try:
-        import netifaces  # type: ignore
+        try:
+            import netifaces  # type: ignore
+        except ImportError:
+            import netifaces2 as netifaces  # type: ignore
 
         for iface in netifaces.interfaces():
             addrs = netifaces.ifaddresses(iface)
