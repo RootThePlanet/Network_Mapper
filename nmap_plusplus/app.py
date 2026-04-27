@@ -400,7 +400,7 @@ def create_app(
         data = topology.get_graph_data()
         buf = io.StringIO()
         writer = csv.writer(buf)
-        writer.writerow(["ip", "hostname", "mac", "node_type", "hop", "open_ports"])
+        writer.writerow(["ip", "hostname", "mac", "vendor", "device_type", "node_type", "hop", "open_ports"])
         for node in data.get("nodes", []):
             ip = node.get("id", "")
             with port_lock:
@@ -410,6 +410,8 @@ def create_app(
                 ip,
                 node.get("hostname", ""),
                 node.get("mac", ""),
+                node.get("vendor", ""),
+                node.get("device_type", ""),
                 node.get("node_type", ""),
                 node.get("hop", ""),
                 open_ports,
@@ -434,6 +436,8 @@ def create_app(
                 f"<tr><td>{ip}</td>"
                 f"<td>{node.get('hostname','')}</td>"
                 f"<td>{node.get('mac','')}</td>"
+                f"<td>{node.get('vendor','')}</td>"
+                f"<td>{node.get('device_type','')}</td>"
                 f"<td>{node.get('node_type','')}</td>"
                 f"<td>{node.get('hop','')}</td>"
                 f"<td>{open_ports}</td></tr>\n"
@@ -455,7 +459,7 @@ tr:nth-child(even) {{ background: #161b22; }}
 <p class="stat">Generated: {datetime.now(tz=timezone.utc).isoformat()} &nbsp;|&nbsp;
 Nodes: {data.get('node_count',0)} &nbsp;|&nbsp; Links: {data.get('link_count',0)}</p>
 <table>
-<thead><tr><th>IP</th><th>Hostname</th><th>MAC</th><th>Type</th><th>Hop</th><th>Open Ports</th></tr></thead>
+<thead><tr><th>IP</th><th>Hostname</th><th>MAC</th><th>Vendor</th><th>Device</th><th>Type</th><th>Hop</th><th>Open Ports</th></tr></thead>
 <tbody>
 {rows}
 </tbody>

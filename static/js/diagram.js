@@ -21,6 +21,34 @@ const NODE_COLORS = {
   remote:  null,       // determined by hop
 };
 
+/* ============================================================
+   Device-type icons (emoji)
+   ============================================================ */
+const DEVICE_ICONS = {
+  router:       "📡",
+  phone:        "📱",
+  laptop:       "💻",
+  desktop:      "🖥️",
+  tv:           "📺",
+  printer:      "🖨️",
+  server:       "🗄️",
+  raspberry_pi: "🍓",
+  vm:           "☁️",
+  iot:          "💡",
+  unknown:      "",
+};
+
+function deviceIcon(d) {
+  return DEVICE_ICONS[d.device_type] || "";
+}
+
+function deviceLabel(d) {
+  const icon = deviceIcon(d);
+  const type = (d.device_type || "").replace(/_/g, " ");
+  if (!type || type === "unknown") return d.vendor || "";
+  return icon ? `${icon} ${type}` : type;
+}
+
 function nodeColor(d) {
   if (d.is_focal)             return "#ff5fd8";
   if (d.node_type === "local")   return NODE_COLORS.local;
@@ -191,6 +219,7 @@ class NetworkDiagram {
         method: hostData.method || "",
         hop: hostData.hop ?? 1,
         node_type: hostData.node_type || "remote",
+        device_type: hostData.device_type || "unknown",
         distance_from_focal: hostData.hop ?? 1,
         is_focal: false,
         x: this.width / 2 + (Math.random() - 0.5) * 100,
@@ -233,7 +262,7 @@ class NetworkDiagram {
       ng.append("text")
         .attr("class", "node-sublabel")
         .attr("y", d => nodeRadius(d) + 23)
-        .text(d => d.vendor || "");
+        .text(d => deviceLabel(d));
 
       // Rebuild nodeSel selection
       this.nodeSel = this.svg.select("#nodes-layer").selectAll("g.node-group").data(this.nodes, d => d.id);
@@ -295,7 +324,7 @@ class NetworkDiagram {
     this.nodeSel.append("text")
       .attr("class", "node-sublabel")
       .attr("y", d => nodeRadius(d) + 23)
-      .text(d => d.vendor || "");
+      .text(d => deviceLabel(d));
 
     this._buildSimulation(simLinks);
 
@@ -447,12 +476,20 @@ class NetworkDiagram {
     const optRow = (label, value) =>
       value ? `<div class="detail-row"><span class="dk">${label}</span><span class="dv">${value}</span></div>` : "";
 
+    const deviceTypeRow = (() => {
+      if (!d.device_type || d.device_type === "unknown") return "";
+      const icon = deviceIcon(d);
+      const label = d.device_type.replace(/_/g, " ");
+      return `<div class="detail-row"><span class="dk">Device</span><span class="dv">${icon ? icon + " " : ""}${label}</span></div>`;
+    })();
+
     panel.innerHTML = `
       <div class="detail-row"><span class="dk">IP</span>
         <span class="dv">${d.id}</span></div>
       <div class="detail-row"><span class="dk">Hostname</span>
         <span class="dv">${d.hostname || "—"}</span></div>
       ${optRow("Vendor", d.vendor)}
+      ${deviceTypeRow}
       ${optRow("OS", d.os)}
       <div class="detail-row"><span class="dk">MAC</span>
         <span class="dv">${d.mac || "—"}</span></div>
@@ -573,6 +610,11 @@ class NetworkDiagram {
     const metaLines = [];
     if (d.mac)    metaLines.push(`MAC: ${d.mac}`);
     if (d.vendor) metaLines.push(`Vendor: <strong style="color:var(--text)">${d.vendor}</strong>`);
+    if (d.device_type && d.device_type !== "unknown") {
+      const icon = deviceIcon(d);
+      const type = d.device_type.replace(/_/g, " ");
+      metaLines.push(`Device: <strong style="color:var(--text)">${icon ? icon + " " : ""}${type}</strong>`);
+    }
     if (d.os)     metaLines.push(`OS: <strong style="color:var(--text)">${d.os}</strong>`);
     metaLines.push(`Type: ${d.node_type}`);
     if (d.method) metaLines.push(`Discovered via: ${d.method}`);
@@ -629,7 +671,9 @@ class NetworkDiagram {
     this.nodeSel.each(function(d) {
       const matches = (d.id || "").toLowerCase().includes(q) ||
                       (d.hostname || "").toLowerCase().includes(q) ||
-                      (d.mac || "").toLowerCase().includes(q);
+                      (d.mac || "").toLowerCase().includes(q) ||
+                      (d.vendor || "").toLowerCase().includes(q) ||
+                      (d.device_type || "").toLowerCase().includes(q);
       d3.select(this).classed("search-match", matches).classed("search-dim", !matches);
     });
   }
@@ -645,16 +689,22 @@ class NetworkDiagram {
       if (typeof av === "number") return (av - bv) * sortDir;
       return String(av).localeCompare(String(bv)) * sortDir;
     });
-    tbody.innerHTML = sorted.map(n => `
+    tbody.innerHTML = sorted.map(n => {
+      const icon = deviceIcon(n);
+      const dtype = n.device_type && n.device_type !== "unknown"
+        ? `${icon ? icon + " " : ""}${n.device_type.replace(/_/g, " ")}` : "—";
+      return `
       <tr>
         <td>${n.id}</td>
         <td>${n.hostname || "—"}</td>
         <td>${n.vendor || "—"}</td>
+        <td>${dtype}</td>
         <td>${n.hop ?? "—"}</td>
         <td>${n.mac || "—"}</td>
         <td>${n.node_type || "—"}</td>
         <td>${n.method || "—"}</td>
-      </tr>`).join("");
+      </tr>`;
+    }).join("");
   }
 
   /* ── SVG Export ── */
