@@ -15,7 +15,7 @@ setup(
     ],
     extras_require={
         "dev": ["pytest>=7.0", "pytest-cov"],
-        "full": ["netifaces>=0.11.0"],
+        "full": ["netifaces2>=0.0.1"],
     },
     entry_points={
         "console_scripts": [
