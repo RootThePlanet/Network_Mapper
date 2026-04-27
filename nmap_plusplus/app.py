@@ -26,7 +26,7 @@ from .topology import NetworkTopology
 
 logger = logging.getLogger(__name__)
 
-# Path to the static/ directory (sibling of network_mapper/)
+# Path to the static/ directory (sibling of nmap_plusplus/)
 STATIC_DIR = Path(__file__).parent.parent / "static"
 
 
