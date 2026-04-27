@@ -655,7 +655,6 @@ class NetworkScanner:
                     "os": "",
                     "hop": 0,
                     "node_type": "local",
-                    "device_type": "laptop",
                 }
                 local_info["device_type"] = classify_device_type(
                     local_info["hostname"], local_info["vendor"], local_info["os"]
