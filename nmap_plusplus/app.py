@@ -166,7 +166,9 @@ def create_app(
                     for cidr in allowed_networks:
                         try:
                             allowed_net = ipaddress.ip_network(cidr, strict=False)
-                            if net_obj.subnet_of(allowed_net):  # type: ignore[arg-type]
+                            # subnet_of requires both networks to be the same version
+                            if (type(net_obj) is type(allowed_net)
+                                    and net_obj.subnet_of(allowed_net)):
                                 allowed = True
                                 break
                         except Exception:

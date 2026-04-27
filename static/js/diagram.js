@@ -452,7 +452,9 @@ class NetworkDiagram {
       fetch(`/api/ports/${encodeURIComponent(ip)}`)
         .then(r => r.json())
         .then(data => {
-          if (data.ports && data.ports.length >= 0 && attempts > 0) {
+          // Show results once we have a valid ports array (even if empty means "no open ports found")
+          // Use attempts > 0 to ensure we've waited at least one poll cycle after POSTing
+          if (data.ports !== undefined && attempts > 0) {
             this._renderPortResults(ip, data.ports);
           } else {
             this._pollPortResults(ip, attempts + 1);

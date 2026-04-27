@@ -4,7 +4,7 @@ Scan history persistence: save/load/diff topology snapshots as JSON files.
 
 import json
 import logging
-import os
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List
@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 class ScanHistory:
     """Persists topology snapshots to a directory of timestamped JSON files."""
 
+    _counter_lock = threading.Lock()
+    _counter = 0
+
     def __init__(self, storage_dir: str = "scan_history") -> None:
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
@@ -23,8 +26,11 @@ class ScanHistory:
 
     def save(self, topology_data: dict) -> str:
         """Write topology_data to a timestamped JSON file. Returns filename."""
-        ts = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        filename = f"{ts}.json"
+        now = datetime.now(tz=timezone.utc)
+        with self.__class__._counter_lock:
+            self.__class__._counter += 1
+            seq = self.__class__._counter
+        filename = f"{now.strftime('%Y%m%dT%H%M%S')}_{now.strftime('%f')}_{seq:06d}Z.json"
         path = self.storage_dir / filename
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(topology_data, fh, indent=2)
