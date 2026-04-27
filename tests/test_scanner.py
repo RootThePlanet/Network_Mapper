@@ -1,11 +1,11 @@
-"""Tests for network_mapper.scanner."""
+"""Tests for nmap_plusplus.scanner."""
 
 import ipaddress
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from network_mapper.scanner import (
+from nmap_plusplus.scanner import (
     generate_demo_topology,
     get_arp_table,
     get_local_interfaces,
@@ -25,7 +25,7 @@ class TestGetLocalInterfaces:
         result = get_local_interfaces()
         assert isinstance(result, list)
 
-    @patch("network_mapper.scanner.netifaces", create=True)
+    @patch("nmap_plusplus.scanner.netifaces", create=True)
     def test_uses_netifaces_when_available(self, mock_netifaces):
         mock_netifaces.interfaces.return_value = ["eth0"]
         mock_netifaces.AF_INET = 2
@@ -47,17 +47,17 @@ class TestGetLocalInterfaces:
 # ---------------------------------------------------------------------------
 
 class TestPingHost:
-    @patch("network_mapper.scanner.subprocess.run")
+    @patch("nmap_plusplus.scanner.subprocess.run")
     def test_returns_true_on_zero_returncode(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0)
         assert ping_host("192.168.1.1") is True
 
-    @patch("network_mapper.scanner.subprocess.run")
+    @patch("nmap_plusplus.scanner.subprocess.run")
     def test_returns_false_on_nonzero_returncode(self, mock_run):
         mock_run.return_value = MagicMock(returncode=1)
         assert ping_host("192.168.1.2") is False
 
-    @patch("network_mapper.scanner.subprocess.run", side_effect=Exception("timeout"))
+    @patch("nmap_plusplus.scanner.subprocess.run", side_effect=Exception("timeout"))
     def test_returns_false_on_exception(self, _mock_run):
         assert ping_host("192.168.1.3") is False
 
@@ -67,10 +67,10 @@ class TestPingHost:
 # ---------------------------------------------------------------------------
 
 class TestScanSubnet:
-    @patch("network_mapper.scanner.resolve_hostname", side_effect=lambda ip: ip)
-    @patch("network_mapper.scanner.ping_host", return_value=False)
+    @patch("nmap_plusplus.scanner.resolve_hostname", side_effect=lambda ip: ip)
+    @patch("nmap_plusplus.scanner.ping_host", return_value=False)
     @patch(
-        "network_mapper.scanner.get_arp_table",
+        "nmap_plusplus.scanner.get_arp_table",
         return_value={"192.168.1.50": "aa:bb:cc:dd:ee:01"},
     )
     def test_arp_host_found_even_without_ping_response(
@@ -81,10 +81,10 @@ class TestScanSubnet:
         ips = [h["ip"] for h in results]
         assert "192.168.1.50" in ips
 
-    @patch("network_mapper.scanner.resolve_hostname", side_effect=lambda ip: ip)
-    @patch("network_mapper.scanner.ping_host", return_value=False)
+    @patch("nmap_plusplus.scanner.resolve_hostname", side_effect=lambda ip: ip)
+    @patch("nmap_plusplus.scanner.ping_host", return_value=False)
     @patch(
-        "network_mapper.scanner.get_arp_table",
+        "nmap_plusplus.scanner.get_arp_table",
         return_value={"192.168.1.50": "aa:bb:cc:dd:ee:01"},
     )
     def test_arp_host_has_method_arp(self, _arp, _ping, _resolve):
@@ -92,10 +92,10 @@ class TestScanSubnet:
         host = next(h for h in results if h["ip"] == "192.168.1.50")
         assert host["method"] == "arp"
 
-    @patch("network_mapper.scanner.resolve_hostname", side_effect=lambda ip: ip)
-    @patch("network_mapper.scanner.ping_host", return_value=False)
+    @patch("nmap_plusplus.scanner.resolve_hostname", side_effect=lambda ip: ip)
+    @patch("nmap_plusplus.scanner.ping_host", return_value=False)
     @patch(
-        "network_mapper.scanner.get_arp_table",
+        "nmap_plusplus.scanner.get_arp_table",
         return_value={"10.0.0.5": "aa:bb:cc:dd:ee:02"},
     )
     def test_arp_host_outside_subnet_ignored(self, _arp, _ping, _resolve):
@@ -104,10 +104,10 @@ class TestScanSubnet:
         ips = [h["ip"] for h in results]
         assert "10.0.0.5" not in ips
 
-    @patch("network_mapper.scanner.resolve_hostname", side_effect=lambda ip: ip)
-    @patch("network_mapper.scanner.ping_host", return_value=True)
+    @patch("nmap_plusplus.scanner.resolve_hostname", side_effect=lambda ip: ip)
+    @patch("nmap_plusplus.scanner.ping_host", return_value=True)
     @patch(
-        "network_mapper.scanner.get_arp_table",
+        "nmap_plusplus.scanner.get_arp_table",
         return_value={"192.168.1.50": "aa:bb:cc:dd:ee:01"},
     )
     def test_arp_host_not_duplicated_when_ping_also_responds(
@@ -118,10 +118,10 @@ class TestScanSubnet:
         ips = [h["ip"] for h in results]
         assert ips.count("192.168.1.50") == 1
 
-    @patch("network_mapper.scanner.resolve_hostname", side_effect=lambda ip: ip)
-    @patch("network_mapper.scanner.ping_host", return_value=False)
+    @patch("nmap_plusplus.scanner.resolve_hostname", side_effect=lambda ip: ip)
+    @patch("nmap_plusplus.scanner.ping_host", return_value=False)
     @patch(
-        "network_mapper.scanner.get_arp_table",
+        "nmap_plusplus.scanner.get_arp_table",
         return_value={"192.168.1.50": "aa:bb:cc:dd:ee:01"},
     )
     def test_arp_callback_invoked(self, _arp, _ping, _resolve):
@@ -131,9 +131,9 @@ class TestScanSubnet:
         called_ips = [call.args[0]["ip"] for call in cb.call_args_list]
         assert "192.168.1.50" in called_ips
 
-    @patch("network_mapper.scanner.resolve_hostname", side_effect=lambda ip: ip)
-    @patch("network_mapper.scanner.ping_host", return_value=False)
-    @patch("network_mapper.scanner.get_arp_table", return_value={})
+    @patch("nmap_plusplus.scanner.resolve_hostname", side_effect=lambda ip: ip)
+    @patch("nmap_plusplus.scanner.ping_host", return_value=False)
+    @patch("nmap_plusplus.scanner.get_arp_table", return_value={})
     def test_invalid_network_returns_empty(self, _arp, _ping, _resolve):
         assert scan_subnet("not-a-network") == []
 
@@ -143,11 +143,11 @@ class TestScanSubnet:
 # ---------------------------------------------------------------------------
 
 class TestResolveHostname:
-    @patch("network_mapper.scanner.socket.gethostbyaddr", return_value=("myhost", [], []))
+    @patch("nmap_plusplus.scanner.socket.gethostbyaddr", return_value=("myhost", [], []))
     def test_returns_hostname(self, _mock):
         assert resolve_hostname("192.168.1.1") == "myhost"
 
-    @patch("network_mapper.scanner.socket.gethostbyaddr", side_effect=OSError)
+    @patch("nmap_plusplus.scanner.socket.gethostbyaddr", side_effect=OSError)
     def test_returns_ip_on_failure(self, _mock):
         assert resolve_hostname("10.0.0.1") == "10.0.0.1"
 
@@ -198,10 +198,10 @@ class TestNetworkScanner:
         # Should not propagate the exception
         s._emit("host_found", {})
 
-    @patch("network_mapper.scanner.get_local_interfaces")
-    @patch("network_mapper.scanner.multicast_discover", return_value=[])
-    @patch("network_mapper.scanner.scan_subnet", return_value=[])
-    @patch("network_mapper.scanner.socket.gethostname", return_value="test-host")
+    @patch("nmap_plusplus.scanner.get_local_interfaces")
+    @patch("nmap_plusplus.scanner.multicast_discover", return_value=[])
+    @patch("nmap_plusplus.scanner.scan_subnet", return_value=[])
+    @patch("nmap_plusplus.scanner.socket.gethostname", return_value="test-host")
     def test_scan_adds_local_interface(
         self, _hn, _sub, _mc, mock_ifaces
     ):
@@ -213,10 +213,10 @@ class TestNetworkScanner:
         assert "192.168.1.1" in result["hosts"]
         assert result["hosts"]["192.168.1.1"]["hop"] == 0
 
-    @patch("network_mapper.scanner.get_local_interfaces")
-    @patch("network_mapper.scanner.multicast_discover", return_value=[])
-    @patch("network_mapper.scanner.scan_subnet")
-    @patch("network_mapper.scanner.socket.gethostname", return_value="test-host")
+    @patch("nmap_plusplus.scanner.get_local_interfaces")
+    @patch("nmap_plusplus.scanner.multicast_discover", return_value=[])
+    @patch("nmap_plusplus.scanner.scan_subnet")
+    @patch("nmap_plusplus.scanner.socket.gethostname", return_value="test-host")
     def test_hop_limit_filters_far_hosts(
         self, _hn, mock_sub, _mc, mock_ifaces
     ):
@@ -258,10 +258,10 @@ class TestNetworkScanner:
         assert ("192.168.1.1", "192.168.1.3") in link_set
         assert ("192.168.1.1", "192.168.1.1") not in link_set
 
-    @patch("network_mapper.scanner.get_local_interfaces")
-    @patch("network_mapper.scanner.multicast_discover", return_value=[])
-    @patch("network_mapper.scanner.scan_subnet")
-    @patch("network_mapper.scanner.socket.gethostname", return_value="test-host")
+    @patch("nmap_plusplus.scanner.get_local_interfaces")
+    @patch("nmap_plusplus.scanner.multicast_discover", return_value=[])
+    @patch("nmap_plusplus.scanner.scan_subnet")
+    @patch("nmap_plusplus.scanner.socket.gethostname", return_value="test-host")
     def test_concurrent_callbacks_no_duplicates(
         self, _hn, mock_sub, _mc, mock_ifaces
     ):

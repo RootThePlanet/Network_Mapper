@@ -1,8 +1,8 @@
-"""Tests for network_mapper.topology."""
+"""Tests for nmap_plusplus.topology."""
 
 import pytest
 
-from network_mapper.topology import NetworkTopology
+from nmap_plusplus.topology import NetworkTopology
 
 
 # ---------------------------------------------------------------------------

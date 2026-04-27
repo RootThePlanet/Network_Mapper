@@ -1,9 +1,9 @@
-"""Tests for Flask API (network_mapper.app)."""
+"""Tests for Flask API (nmap_plusplus.app)."""
 
 import json
 import pytest
 
-from network_mapper.app import create_app
+from nmap_plusplus.app import create_app
 
 
 @pytest.fixture()
@@ -28,7 +28,7 @@ class TestHealth:
     def test_index_serves_html(self, client):
         r = client.get("/")
         assert r.status_code == 200
-        assert b"Network Mapper" in r.data
+        assert b"nmap++" in r.data
 
 
 # ---------------------------------------------------------------------------
