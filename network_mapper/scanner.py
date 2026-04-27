@@ -261,9 +261,9 @@ def scan_subnet(
 
     def _probe(ip_addr: ipaddress.IPv4Address) -> None:
         ip_str = str(ip_addr)
-        with lock:
-            if ip_str in seen:
-                return
+        # Fast path: skip without acquiring the lock (re-checked under lock below).
+        if ip_str in seen:
+            return
         with semaphore:
             if not ping_host(ip_str, timeout):
                 return
