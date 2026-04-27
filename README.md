@@ -1,4 +1,4 @@
-# Network Mapper
+# nmap++
 
 A web-based application that crawls your network, discovers all reachable
 computers, and renders an interactive **fisheye force-directed diagram**
@@ -79,11 +79,11 @@ python main.py [--host HOST] [--port PORT] [--debug]
 ## Project Structure
 
 ```
-Network_Mapper/
+nmap-plusplus/
 ├── main.py                  # Entry point
 ├── requirements.txt
 ├── setup.py
-├── network_mapper/
+├── nmap_plusplus/
 │   ├── __init__.py
 │   ├── scanner.py           # Multicast + ICMP discovery, hop limiting
 │   ├── topology.py          # NetworkX graph, radial layout, D3 data

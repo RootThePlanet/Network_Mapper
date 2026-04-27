@@ -1,5 +1,5 @@
 """
-Flask web application for Network Mapper.
+Flask web application for nmap++.
 
 Routes
 ------

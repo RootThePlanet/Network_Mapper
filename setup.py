@@ -1,9 +1,9 @@
-"""Setup configuration for Network Mapper."""
+"""Setup configuration for nmap++."""
 
 from setuptools import find_packages, setup
 
 setup(
-    name="network-mapper",
+    name="nmap-plusplus",
     version="1.0.0",
     description="Discover and visualise your network topology",
     packages=find_packages(exclude=["tests*"]),
@@ -19,7 +19,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "network-mapper=main:main",
+            "nmap-plusplus=main:main",
         ]
     },
 )
