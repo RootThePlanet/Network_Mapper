@@ -35,7 +35,9 @@
         <div id="scan-status" class="status-bar hidden">
           <div id="scan-progress" class="progress-inner"></div>
           <span id="scan-msg">Scanning…</span>
+          <span id="scan-elapsed"></span>
         </div>
+        <div id="new-hosts-banner" class="hidden banner-warning"></div>
       </section>
 
       <!-- Legend -->
@@ -66,6 +68,23 @@
           <div class="stat-row"><span>Focal</span><strong id="stat-focal">—</strong></div>
         </div>
       </section>
+
+      <!-- Export -->
+      <section class="panel">
+        <h2>Export</h2>
+        <div class="btn-row">
+          <button id="btn-export-json" class="btn btn-secondary">⬇ JSON</button>
+          <button id="btn-export-csv"  class="btn btn-secondary">⬇ CSV</button>
+          <button id="btn-export-svg"  class="btn btn-secondary">⬇ SVG</button>
+          <button id="btn-export-html" class="btn btn-secondary">⬇ Report</button>
+        </div>
+      </section>
+
+      <!-- History -->
+      <section class="panel" id="history-panel">
+        <h2>History</h2>
+        <div id="history-list"><p class="muted">No history yet.</p></div>
+      </section>
     </aside>
 
     <!-- ── Canvas ── -->
@@ -74,6 +93,10 @@
         <button id="btn-zoom-in"  class="icon-btn" title="Zoom in">+</button>
         <button id="btn-zoom-out" class="icon-btn" title="Zoom out">−</button>
         <button id="btn-reset"    class="icon-btn" title="Reset view">⌖</button>
+        <button id="btn-view-toggle" class="icon-btn" title="Toggle table view">☰</button>
+        <button id="btn-notify"  class="icon-btn" title="Enable notifications">🔔</button>
+        <input id="search-input" type="text" placeholder="Search nodes…"
+               style="height:28px;padding:0 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;width:140px;">
         <span id="hint">Mouse over nodes to activate fisheye · Click to change point of view</span>
       </div>
       <svg id="graph-svg">
@@ -92,6 +115,20 @@
           <g id="nodes-layer"></g>
         </g>
       </svg>
+      <div id="table-view" class="hidden">
+        <table id="host-table">
+          <thead>
+            <tr>
+              <th data-col="id">IP ⇅</th>
+              <th data-col="hostname">Hostname ⇅</th>
+              <th data-col="hop">Hop ⇅</th>
+              <th data-col="mac">MAC ⇅</th>
+              <th data-col="node_type">Type ⇅</th>
+            </tr>
+          </thead>
+          <tbody id="host-table-body"></tbody>
+        </table>
+      </div>
       <div id="empty-state">
         <div class="empty-icon">🔍</div>
         <h3>No network data yet</h3>
