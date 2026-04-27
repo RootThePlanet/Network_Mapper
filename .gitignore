@@ -15,3 +15,7 @@ htmlcov/
 node_modules/
 package.json
 package-lock.json
+scan_history/
+config.yaml
+config.yml
+config.json

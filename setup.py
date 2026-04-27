@@ -12,10 +12,12 @@ setup(
         "flask>=2.3.0",
         "flask-cors>=4.0.0",
         "networkx>=3.1",
+        "PyYAML>=6.0",
     ],
     extras_require={
         "dev": ["pytest>=7.0", "pytest-cov"],
         "full": ["netifaces2>=0.0.1"],
+        "mdns": ["zeroconf>=0.115.0"],
     },
     entry_points={
         "console_scripts": [
