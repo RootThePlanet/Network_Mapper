@@ -215,23 +215,55 @@ def scan_subnet(
     callback: Optional[Callable[[Dict], None]] = None,
 ) -> List[Dict]:
     """
-    Sweep all host addresses in *network* with ICMP pings (up to *max_hosts*)
-    using a thread pool.
+    Discover hosts in *network* using two complementary methods:
+
+    1. **ARP table** – any host that appears in the OS ARP cache and falls
+       within *network* is reported immediately, regardless of whether it
+       responds to ping.  This catches devices that block ICMP (smartphones,
+       firewalled PCs, IoT devices, etc.).
+    2. **ICMP ping sweep** – all host addresses in *network* (up to
+       *max_hosts*) are probed concurrently via a thread pool.  Hosts already
+       found through ARP are skipped so they are not reported twice.
     """
     discovered: List[Dict] = []
+    seen: set = set()
     lock = threading.Lock()
 
     try:
-        hosts = list(ipaddress.IPv4Network(network, strict=False).hosts())[:max_hosts]
+        net_obj = ipaddress.IPv4Network(network, strict=False)
+        hosts = list(net_obj.hosts())[:max_hosts]
     except ValueError as exc:
         logger.error("Invalid network %r: %s", network, exc)
         return []
 
     arp_table = get_arp_table()
+
+    # --- Pass 1: report hosts already in the ARP cache -------------------
+    for ip_str, mac in arp_table.items():
+        try:
+            if ipaddress.IPv4Address(ip_str) not in net_obj:
+                continue
+        except ValueError:
+            continue
+        host = {
+            "ip": ip_str,
+            "hostname": resolve_hostname(ip_str),
+            "mac": mac,
+            "method": "arp",
+        }
+        seen.add(ip_str)
+        discovered.append(host)
+        if callback:
+            callback(host)
+
+    # --- Pass 2: ICMP ping sweep for hosts not yet found -----------------
     semaphore = threading.Semaphore(50)
 
     def _probe(ip_addr: ipaddress.IPv4Address) -> None:
         ip_str = str(ip_addr)
+        # Fast path: skip without acquiring the lock (re-checked under lock below).
+        if ip_str in seen:
+            return
         with semaphore:
             if not ping_host(ip_str, timeout):
                 return
@@ -242,6 +274,9 @@ def scan_subnet(
             "method": "icmp",
         }
         with lock:
+            if ip_str in seen:
+                return
+            seen.add(ip_str)
             discovered.append(host)
         if callback:
             callback(host)
@@ -269,6 +304,7 @@ class NetworkScanner:
         self.hosts: Dict[str, Dict] = {}
         self.scanning = False
         self._callbacks: List[Callable] = []
+        self._hosts_lock = threading.Lock()
 
     # ------------------------------------------------------------------
     def add_callback(self, cb: Callable) -> None:
@@ -323,12 +359,13 @@ class NetworkScanner:
 
             def _on_found(host: Dict) -> None:
                 ip = host["ip"]
-                if ip in self.hosts:
-                    return
                 hop = self._hop_distance(ip, local_ip) if local_ip else 1
                 if hop > self.hop_limit:
                     return
-                self.hosts[ip] = {**host, "hop": hop, "node_type": "remote"}
+                with self._hosts_lock:
+                    if ip in self.hosts:
+                        return
+                    self.hosts[ip] = {**host, "hop": hop, "node_type": "remote"}
                 self._emit("host_found", self.hosts[ip])
 
             # Multicast discovery (crosses routers up to hop_limit)

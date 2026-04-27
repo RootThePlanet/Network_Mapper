@@ -12,6 +12,7 @@ from network_mapper.scanner import (
     NetworkScanner,
     ping_host,
     resolve_hostname,
+    scan_subnet,
 )
 
 
@@ -59,6 +60,82 @@ class TestPingHost:
     @patch("network_mapper.scanner.subprocess.run", side_effect=Exception("timeout"))
     def test_returns_false_on_exception(self, _mock_run):
         assert ping_host("192.168.1.3") is False
+
+
+# ---------------------------------------------------------------------------
+# scan_subnet
+# ---------------------------------------------------------------------------
+
+class TestScanSubnet:
+    @patch("network_mapper.scanner.resolve_hostname", side_effect=lambda ip: ip)
+    @patch("network_mapper.scanner.ping_host", return_value=False)
+    @patch(
+        "network_mapper.scanner.get_arp_table",
+        return_value={"192.168.1.50": "aa:bb:cc:dd:ee:01"},
+    )
+    def test_arp_host_found_even_without_ping_response(
+        self, _arp, _ping, _resolve
+    ):
+        """Hosts in the ARP table must be discovered even when ping is blocked."""
+        results = scan_subnet("192.168.1.0/24")
+        ips = [h["ip"] for h in results]
+        assert "192.168.1.50" in ips
+
+    @patch("network_mapper.scanner.resolve_hostname", side_effect=lambda ip: ip)
+    @patch("network_mapper.scanner.ping_host", return_value=False)
+    @patch(
+        "network_mapper.scanner.get_arp_table",
+        return_value={"192.168.1.50": "aa:bb:cc:dd:ee:01"},
+    )
+    def test_arp_host_has_method_arp(self, _arp, _ping, _resolve):
+        results = scan_subnet("192.168.1.0/24")
+        host = next(h for h in results if h["ip"] == "192.168.1.50")
+        assert host["method"] == "arp"
+
+    @patch("network_mapper.scanner.resolve_hostname", side_effect=lambda ip: ip)
+    @patch("network_mapper.scanner.ping_host", return_value=False)
+    @patch(
+        "network_mapper.scanner.get_arp_table",
+        return_value={"10.0.0.5": "aa:bb:cc:dd:ee:02"},
+    )
+    def test_arp_host_outside_subnet_ignored(self, _arp, _ping, _resolve):
+        """An ARP entry outside the scanned subnet must not be reported."""
+        results = scan_subnet("192.168.1.0/24")
+        ips = [h["ip"] for h in results]
+        assert "10.0.0.5" not in ips
+
+    @patch("network_mapper.scanner.resolve_hostname", side_effect=lambda ip: ip)
+    @patch("network_mapper.scanner.ping_host", return_value=True)
+    @patch(
+        "network_mapper.scanner.get_arp_table",
+        return_value={"192.168.1.50": "aa:bb:cc:dd:ee:01"},
+    )
+    def test_arp_host_not_duplicated_when_ping_also_responds(
+        self, _arp, _ping, _resolve
+    ):
+        """A host in the ARP table that also responds to ping must appear only once."""
+        results = scan_subnet("192.168.1.0/24")
+        ips = [h["ip"] for h in results]
+        assert ips.count("192.168.1.50") == 1
+
+    @patch("network_mapper.scanner.resolve_hostname", side_effect=lambda ip: ip)
+    @patch("network_mapper.scanner.ping_host", return_value=False)
+    @patch(
+        "network_mapper.scanner.get_arp_table",
+        return_value={"192.168.1.50": "aa:bb:cc:dd:ee:01"},
+    )
+    def test_arp_callback_invoked(self, _arp, _ping, _resolve):
+        """The callback must be called for hosts discovered via ARP."""
+        cb = MagicMock()
+        scan_subnet("192.168.1.0/24", callback=cb)
+        called_ips = [call.args[0]["ip"] for call in cb.call_args_list]
+        assert "192.168.1.50" in called_ips
+
+    @patch("network_mapper.scanner.resolve_hostname", side_effect=lambda ip: ip)
+    @patch("network_mapper.scanner.ping_host", return_value=False)
+    @patch("network_mapper.scanner.get_arp_table", return_value={})
+    def test_invalid_network_returns_empty(self, _arp, _ping, _resolve):
+        assert scan_subnet("not-a-network") == []
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +257,37 @@ class TestNetworkScanner:
         assert ("192.168.1.1", "192.168.1.2") in link_set
         assert ("192.168.1.1", "192.168.1.3") in link_set
         assert ("192.168.1.1", "192.168.1.1") not in link_set
+
+    @patch("network_mapper.scanner.get_local_interfaces")
+    @patch("network_mapper.scanner.multicast_discover", return_value=[])
+    @patch("network_mapper.scanner.scan_subnet")
+    @patch("network_mapper.scanner.socket.gethostname", return_value="test-host")
+    def test_concurrent_callbacks_no_duplicates(
+        self, _hn, mock_sub, _mc, mock_ifaces
+    ):
+        """The same host reported from concurrent callbacks must appear only once."""
+        mock_ifaces.return_value = [
+            {"ip": "192.168.1.1", "network": "192.168.1.0/24", "interface": "eth0"}
+        ]
+        duplicate_host = {
+            "ip": "192.168.1.99",
+            "hostname": "device",
+            "mac": "aa:bb:cc:dd:ee:ff",
+            "method": "arp",
+        }
+
+        def fake_scan(net, **kwargs):
+            cb = kwargs.get("callback")
+            if cb:
+                cb(duplicate_host)
+                cb(duplicate_host)  # simulate race: same host reported twice
+            return [duplicate_host]
+
+        mock_sub.side_effect = fake_scan
+
+        s = NetworkScanner()
+        result = s.scan()
+        assert list(result["hosts"].keys()).count("192.168.1.99") == 1
 
 
 # ---------------------------------------------------------------------------
