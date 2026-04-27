@@ -52,6 +52,36 @@ function nodeRadius(d) {
 }
 
 /* ============================================================
+   Label helpers
+   ============================================================ */
+
+const LABEL_MAX_LENGTH = 18;
+const LABEL_TRUNCATE_LENGTH = 16;
+
+/**
+ * Return a concise primary label for a node.
+ * - If hostname is meaningful (not just the IP), strip .local. suffix and
+ *   truncate long strings.
+ * - For IPv6 IDs with no meaningful hostname, abbreviate to last two groups.
+ * - IPv4 IDs are short enough to display as-is.
+ */
+function nodeLabel(d) {
+  const h = d.hostname || d.id;
+  if (h !== d.id) {
+    // Strip mDNS .local. / .local suffix
+    let name = h.replace(/\.local\.?$/, "");
+    return name.length > LABEL_MAX_LENGTH ? name.slice(0, LABEL_TRUNCATE_LENGTH) + "…" : name;
+  }
+  // hostname == id (no reverse-DNS result)
+  if (d.id.includes(":")) {
+    // IPv6 – show last two groups
+    const parts = d.id.split(":");
+    return "…:" + parts.slice(-2).join(":");
+  }
+  return d.id;
+}
+
+/* ============================================================
    Fisheye distortion (radial, Sarkar & Brown 1992)
    ============================================================ */
 function createFisheye({ distortion = 3, radius = 180 } = {}) {
@@ -156,6 +186,9 @@ class NetworkDiagram {
         id: ip,
         hostname: hostData.hostname || ip,
         mac: hostData.mac || "",
+        vendor: hostData.vendor || "",
+        os: hostData.os || "",
+        method: hostData.method || "",
         hop: hostData.hop ?? 1,
         node_type: hostData.node_type || "remote",
         distance_from_focal: hostData.hop ?? 1,
@@ -195,7 +228,12 @@ class NetworkDiagram {
       ng.append("text")
         .attr("class", "node-label")
         .attr("y", d => nodeRadius(d) + 12)
-        .text(d => d.hostname || d.id);
+        .text(d => nodeLabel(d));
+
+      ng.append("text")
+        .attr("class", "node-sublabel")
+        .attr("y", d => nodeRadius(d) + 23)
+        .text(d => d.vendor || "");
 
       // Rebuild nodeSel selection
       this.nodeSel = this.svg.select("#nodes-layer").selectAll("g.node-group").data(this.nodes, d => d.id);
@@ -252,7 +290,12 @@ class NetworkDiagram {
     this.nodeSel.append("text")
       .attr("class", "node-label")
       .attr("y", d => nodeRadius(d) + 12)
-      .text(d => d.hostname || d.id);
+      .text(d => nodeLabel(d));
+
+    this.nodeSel.append("text")
+      .attr("class", "node-sublabel")
+      .attr("y", d => nodeRadius(d) + 23)
+      .text(d => d.vendor || "");
 
     this._buildSimulation(simLinks);
 
@@ -401,15 +444,21 @@ class NetworkDiagram {
         <div id="port-results"></div>
       </div>`;
 
+    const optRow = (label, value) =>
+      value ? `<div class="detail-row"><span class="dk">${label}</span><span class="dv">${value}</span></div>` : "";
+
     panel.innerHTML = `
       <div class="detail-row"><span class="dk">IP</span>
         <span class="dv">${d.id}</span></div>
       <div class="detail-row"><span class="dk">Hostname</span>
         <span class="dv">${d.hostname || "—"}</span></div>
+      ${optRow("Vendor", d.vendor)}
+      ${optRow("OS", d.os)}
       <div class="detail-row"><span class="dk">MAC</span>
         <span class="dv">${d.mac || "—"}</span></div>
       <div class="detail-row"><span class="dk">Type</span>
         <span class="dv">${d.node_type}</span></div>
+      ${optRow("Discovered via", d.method)}
       <div class="detail-row"><span class="dk">Hops from focal</span>
         <span class="dv">${d.distance_from_focal ?? d.hop ?? "—"}</span></div>
       <button id="btn-set-focal" class="btn btn-primary"
@@ -513,20 +562,29 @@ class NetworkDiagram {
     if (window._portResultsCache && window._portResultsCache[d.id]) {
       const openPorts = window._portResultsCache[d.id].filter(p => p.state === "open");
       if (openPorts.length) {
-        portsHtml = `<div class="tt-meta" style="margin-top:4px;">Ports: ${openPorts.map(p => p.port).join(", ")}</div>`;
+        portsHtml = `<div class="tt-meta" style="margin-top:4px;">Ports: ${openPorts.map(p => `${p.port}${p.service ? "/" + p.service : ""}`).join(", ")}</div>`;
       }
     }
+
+    const label = nodeLabel(d);
+    const showHostname = d.hostname && d.hostname !== d.id
+      ? `<div class="tt-host">${d.hostname}</div>` : "";
+
+    const metaLines = [];
+    if (d.mac)    metaLines.push(`MAC: ${d.mac}`);
+    if (d.vendor) metaLines.push(`Vendor: <strong style="color:var(--text)">${d.vendor}</strong>`);
+    if (d.os)     metaLines.push(`OS: <strong style="color:var(--text)">${d.os}</strong>`);
+    metaLines.push(`Type: ${d.node_type}`);
+    if (d.method) metaLines.push(`Discovered via: ${d.method}`);
+    if (d.distance_from_focal != null) metaLines.push(`Hops from focal: ${d.distance_from_focal}`);
 
     this.tooltip
       .style("display", "block")
       .html(`
-        <div class="tt-ip">${d.id}</div>
-        <div class="tt-host">${d.hostname || ""}</div>
-        <div class="tt-meta">
-          ${d.mac ? `MAC: ${d.mac}<br>` : ""}
-          Type: ${d.node_type}<br>
-          ${d.distance_from_focal != null ? `Hops from focal: ${d.distance_from_focal}` : ""}
-        </div>
+        <div class="tt-ip">${label}</div>
+        ${label !== d.id ? `<div class="tt-id">${d.id}</div>` : ""}
+        ${showHostname}
+        <div class="tt-meta">${metaLines.join("<br>")}</div>
         ${portsHtml}
         <div class="tt-meta" style="color:#aaa;margin-top:4px">Click to change POV</div>
       `);
@@ -591,9 +649,11 @@ class NetworkDiagram {
       <tr>
         <td>${n.id}</td>
         <td>${n.hostname || "—"}</td>
+        <td>${n.vendor || "—"}</td>
         <td>${n.hop ?? "—"}</td>
         <td>${n.mac || "—"}</td>
         <td>${n.node_type || "—"}</td>
+        <td>${n.method || "—"}</td>
       </tr>`).join("");
   }
 
