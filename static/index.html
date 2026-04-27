@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Network Mapper</title>
+  <link rel="stylesheet" href="/static/css/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- ── Sidebar ── -->
+    <aside id="sidebar">
+      <div class="brand">
+        <span class="brand-icon">🌐</span>
+        <h1>Network Mapper</h1>
+      </div>
+
+      <!-- Controls -->
+      <section class="panel">
+        <h2>Discovery</h2>
+        <div class="field">
+          <label for="hop-limit">Hop limit</label>
+          <input id="hop-limit" type="range" min="1" max="10" value="4" />
+          <span id="hop-limit-val">4</span>
+        </div>
+        <div class="field">
+          <label for="network-input">Network (optional)</label>
+          <input id="network-input" type="text" placeholder="e.g. 192.168.1.0/24" />
+        </div>
+        <div class="btn-row">
+          <button id="btn-scan" class="btn btn-primary">▶ Start Scan</button>
+          <button id="btn-demo" class="btn btn-secondary">🗂 Load Demo</button>
+          <button id="btn-clear" class="btn btn-danger">✕ Clear</button>
+        </div>
+        <div id="scan-status" class="status-bar hidden">
+          <div id="scan-progress" class="progress-inner"></div>
+          <span id="scan-msg">Scanning…</span>
+        </div>
+      </section>
+
+      <!-- Legend -->
+      <section class="panel">
+        <h2>Legend</h2>
+        <div class="legend-row"><span class="legend-dot local"></span> Local machine</div>
+        <div class="legend-row"><span class="legend-dot gateway"></span> Gateway / router</div>
+        <div class="legend-row"><span class="legend-dot hop1"></span> 1 hop away</div>
+        <div class="legend-row"><span class="legend-dot hop2"></span> 2 hops away</div>
+        <div class="legend-row"><span class="legend-dot hop3plus"></span> 3+ hops away</div>
+        <div class="legend-row focal-info"><span class="legend-dot focal"></span> Focal node (POV)</div>
+      </section>
+
+      <!-- Node details -->
+      <section class="panel" id="node-panel">
+        <h2>Node Details</h2>
+        <div id="node-details">
+          <p class="muted">Click a node to inspect it.</p>
+        </div>
+      </section>
+
+      <!-- Stats -->
+      <section class="panel">
+        <h2>Stats</h2>
+        <div id="stats">
+          <div class="stat-row"><span>Nodes</span><strong id="stat-nodes">0</strong></div>
+          <div class="stat-row"><span>Links</span><strong id="stat-links">0</strong></div>
+          <div class="stat-row"><span>Focal</span><strong id="stat-focal">—</strong></div>
+        </div>
+      </section>
+    </aside>
+
+    <!-- ── Canvas ── -->
+    <main id="canvas-area">
+      <div id="toolbar">
+        <button id="btn-zoom-in"  class="icon-btn" title="Zoom in">+</button>
+        <button id="btn-zoom-out" class="icon-btn" title="Zoom out">−</button>
+        <button id="btn-reset"    class="icon-btn" title="Reset view">⌖</button>
+        <span id="hint">Mouse over nodes to activate fisheye · Click to change point of view</span>
+      </div>
+      <svg id="graph-svg">
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8"
+                  refX="16" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="#4a9eff44" />
+          </marker>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <g id="zoom-group">
+          <g id="links-layer"></g>
+          <g id="nodes-layer"></g>
+        </g>
+      </svg>
+      <div id="empty-state">
+        <div class="empty-icon">🔍</div>
+        <h3>No network data yet</h3>
+        <p>Click <em>Load Demo</em> to see a sample topology, or <em>Start Scan</em> to discover your live network.</p>
+      </div>
+    </main>
+  </div>
+
+  <!-- D3 v7 (bundled locally) -->
+  <script src="/static/js/d3.min.js"></script>
+  <script src="/static/js/diagram.js"></script>
+</body>
+</html>
