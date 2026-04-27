@@ -160,7 +160,7 @@ class NetworkTopology:
         Return a dict with ``nodes`` and ``links`` ready for D3.js.
 
         Each node has:
-            id, hostname, mac, vendor, os, method, hop, node_type, distance_from_focal
+            id, hostname, mac, vendor, os, method, hop, node_type, device_type, distance_from_focal
 
         Each link has:
             source, target
@@ -190,6 +190,7 @@ class NetworkTopology:
                     "method": data.get("method", ""),
                     "hop": data.get("hop", 0),
                     "node_type": data.get("node_type", "remote"),
+                    "device_type": data.get("device_type", "unknown"),
                     "distance_from_focal": distances.get(ip, 99),
                     "is_focal": ip == focal_ip,
                 }

@@ -19,6 +19,29 @@ from typing import Callable, Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# Device-type keyword sets used by classify_device_type()
+# ---------------------------------------------------------------------------
+
+_ROUTER_VENDORS = frozenset({
+    "netgear", "tp-link", "d-link", "ubiquiti", "aruba", "juniper",
+    "cisco", "asus", "huawei",
+})
+_GATEWAY_KWS = ("router", "gateway", "firewall", "gw.", ".gw", "-ap-", ".ap.",
+                 "-sw-", "switch", "access-point")
+_PHONE_KWS    = ("iphone", "ipad", "android", "phone", "tablet", "galaxy",
+                 "pixel", "sm-a", "sm-g", "sm-s")
+_LAPTOP_KWS   = ("macbook", "laptop", "notebook", "thinkpad", "inspiron",
+                 "latitude", "elitebook", "xps-")
+_DESKTOP_KWS  = ("desktop", "workstation", "imac", "-pc", "optiplex",
+                 "prodesk", "elitedesk")
+_TV_KWS       = ("smart-tv", "smarttv", "chromecast", "firetv", "fire-tv",
+                 "appletv", "apple-tv", "roku", "androidtv", "-tv-", "-tv.")
+_PRINTER_KWS  = ("printer", "laserjet", "inkjet", "officejet", "deskjet",
+                 "photosmart", "envy", "epson", "canon", "brother")
+_SERVER_KWS   = ("server", "-nas", "nas-", "storage", "fileserver",
+                 "web-", "db-", "mail-", "app-", "api-")
+
+# ---------------------------------------------------------------------------
 # MAC OUI vendor table (first 3 octets of MAC address, uppercase, colon-sep)
 # ---------------------------------------------------------------------------
 
@@ -178,6 +201,64 @@ def lookup_vendor(mac: str) -> str:
     return OUI_TABLE.get(oui, "")
 
 
+def classify_device_type(hostname: str, vendor: str, os_name: str) -> str:
+    """
+    Infer a human-readable device category from hostname, vendor and OS.
+
+    Returns one of: router, phone, laptop, desktop, tv, printer, server,
+    raspberry_pi, vm, iot, or unknown.
+    """
+    h = (hostname or "").lower()
+    v = (vendor or "").lower()
+    o = (os_name or "").lower()
+
+    # Gateway / router / network gear
+    if any(kw in h for kw in _GATEWAY_KWS):
+        return "router"
+    if v in _ROUTER_VENDORS:
+        return "router"
+
+    # Phone / tablet
+    if any(kw in h for kw in _PHONE_KWS):
+        return "phone"
+
+    # Laptop
+    if any(kw in h for kw in _LAPTOP_KWS):
+        return "laptop"
+
+    # Desktop / workstation
+    if any(kw in h for kw in _DESKTOP_KWS):
+        return "desktop"
+    if "windows" in o:
+        return "desktop"
+
+    # Smart TV / streaming stick
+    if any(kw in h for kw in _TV_KWS):
+        return "tv"
+
+    # Printer / scanner / copier
+    if any(kw in h for kw in _PRINTER_KWS):
+        return "printer"
+
+    # Server / NAS
+    if any(kw in h for kw in _SERVER_KWS):
+        return "server"
+
+    # Raspberry Pi / SBC
+    if v == "raspberry pi" or "raspberry" in h:
+        return "raspberry_pi"
+
+    # Virtual machine
+    if v in ("vmware", "parallels"):
+        return "vm"
+
+    # IoT / smart-home (Amazon Echo, Google Home, etc.)
+    if v in ("amazon", "google") or any(kw in h for kw in ("echo", "alexa", "home-hub")):
+        return "iot"
+
+    return "unknown"
+
+
 # SSDP multicast address and port (works across routers with correct TTL)
 MULTICAST_GROUP = "239.255.255.250"
 MULTICAST_PORT = 1900
@@ -292,6 +373,51 @@ def get_arp_table() -> Dict[str, str]:
     except Exception as exc:
         logger.warning("ARP table unavailable: %s", exc)
     return table
+
+
+def get_default_gateway() -> str:
+    """
+    Return the IPv4 default gateway (router) address, or empty string.
+
+    Tries netifaces/netifaces2 first, then falls back to parsing the OS
+    routing table via ``ip route`` (Linux) or ``route print`` (Windows).
+    """
+    try:
+        try:
+            import netifaces  # type: ignore
+        except ImportError:
+            import netifaces2 as netifaces  # type: ignore
+        gws = netifaces.gateways()
+        af_inet = getattr(netifaces, "AF_INET", 2)
+        default_gw = gws.get("default", {})
+        if af_inet in default_gw:
+            return str(default_gw[af_inet][0])
+    except Exception:
+        pass
+
+    # Fallback: OS routing table
+    try:
+        if platform.system().lower() == "windows":
+            result = subprocess.run(
+                ["route", "print", "0.0.0.0"],
+                capture_output=True, text=True, timeout=5,
+            )
+            for line in result.stdout.splitlines():
+                m = re.search(r"0\.0\.0\.0\s+0\.0\.0\.0\s+(\d+\.\d+\.\d+\.\d+)", line)
+                if m:
+                    return m.group(1)
+        else:
+            result = subprocess.run(
+                ["ip", "route", "show", "default"],
+                capture_output=True, text=True, timeout=5,
+            )
+            for line in result.stdout.splitlines():
+                m = re.search(r"default via (\d+\.\d+\.\d+\.\d+)", line)
+                if m:
+                    return m.group(1)
+    except Exception as exc:
+        logger.debug("Gateway detection fallback failed: %s", exc)
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -521,14 +647,26 @@ class NetworkScanner:
                 ip = iface["ip"]
                 if not local_ip:
                     local_ip = ip
-                self.hosts[ip] = {
+                local_info: Dict = {
                     "ip": ip,
                     "hostname": socket.gethostname(),
                     "mac": "",
+                    "vendor": "",
+                    "os": "",
                     "hop": 0,
                     "node_type": "local",
+                    "device_type": "laptop",
                 }
+                local_info["device_type"] = classify_device_type(
+                    local_info["hostname"], local_info["vendor"], local_info["os"]
+                )
+                self.hosts[ip] = local_info
                 self._emit("host_found", self.hosts[ip])
+
+            # Detect the default gateway so we can label it correctly
+            _phase("Gateway detection")
+            gateway_ip: str = get_default_gateway()
+            logger.info("Default gateway detected: %r", gateway_ip or "(none)")
 
             def _on_found(host: Dict) -> None:
                 ip = host["ip"]
@@ -538,7 +676,20 @@ class NetworkScanner:
                 with self._hosts_lock:
                     if ip in self.hosts:
                         return
-                    self.hosts[ip] = {**host, "hop": hop, "node_type": "remote"}
+                    nt = "gateway" if ip == gateway_ip else "remote"
+                    vendor = host.get("vendor", "")
+                    device_type = classify_device_type(
+                        host.get("hostname", ip), vendor, host.get("os", "")
+                    )
+                    # Gateway node_type overrides device_type classification
+                    if nt == "gateway":
+                        device_type = "router"
+                    self.hosts[ip] = {
+                        **host,
+                        "hop": hop,
+                        "node_type": nt,
+                        "device_type": device_type,
+                    }
                 self._emit("host_found", self.hosts[ip])
 
             # Multicast discovery (crosses routers up to hop_limit)
@@ -578,20 +729,41 @@ class NetworkScanner:
             except Exception as exc:
                 logger.debug("IPv6 discovery failed: %s", exc)
 
-            links = self._build_links(local_ip)
+            links = self._build_links(local_ip, gateway_ip)
         finally:
             self.scanning = False
 
         return {"hosts": self.hosts, "links": links}
 
     # ------------------------------------------------------------------
-    def _build_links(self, local_ip: str) -> List[Tuple[str, str]]:
-        """Connect each discovered host back to the local machine or a gateway."""
+    def _build_links(self, local_ip: str, gateway_ip: str = "") -> List[Tuple[str, str]]:
+        """
+        Build edges for the topology graph.
+
+        When the default gateway is known and present in the discovered hosts,
+        build a gateway-centric topology:
+          local → gateway → all other LAN devices
+
+        This accurately represents how devices communicate on a home/office
+        network: everything connects through the router.  When no gateway is
+        detected (or it was not discovered), fall back to the previous
+        behaviour of linking every device directly to the local node.
+        """
         links: List[Tuple[str, str]] = []
-        for ip, host in self.hosts.items():
-            if ip == local_ip:
-                continue
-            links.append((local_ip, ip))
+        if gateway_ip and gateway_ip in self.hosts and gateway_ip != local_ip:
+            # local → gateway
+            links.append((local_ip, gateway_ip))
+            # gateway → all other discovered devices
+            for ip in self.hosts:
+                if ip == local_ip or ip == gateway_ip:
+                    continue
+                links.append((gateway_ip, ip))
+        else:
+            # Fallback: connect everything directly to the local machine
+            for ip in self.hosts:
+                if ip == local_ip:
+                    continue
+                links.append((local_ip, ip))
         return links
 
 
@@ -614,6 +786,7 @@ def generate_demo_topology() -> Dict:
             "method": "local",
             "hop": 0,
             "node_type": "local",
+            "device_type": "laptop",
         },
         gateway: {
             "ip": gateway,
@@ -624,6 +797,7 @@ def generate_demo_topology() -> Dict:
             "method": "arp",
             "hop": 1,
             "node_type": "gateway",
+            "device_type": "router",
         },
         "192.168.1.101": {
             "ip": "192.168.1.101",
@@ -634,6 +808,7 @@ def generate_demo_topology() -> Dict:
             "method": "icmp",
             "hop": 1,
             "node_type": "remote",
+            "device_type": "desktop",
         },
         "192.168.1.102": {
             "ip": "192.168.1.102",
@@ -644,6 +819,7 @@ def generate_demo_topology() -> Dict:
             "method": "mdns",
             "hop": 1,
             "node_type": "remote",
+            "device_type": "laptop",
         },
         "192.168.1.103": {
             "ip": "192.168.1.103",
@@ -654,6 +830,7 @@ def generate_demo_topology() -> Dict:
             "method": "arp",
             "hop": 1,
             "node_type": "remote",
+            "device_type": "phone",
         },
         "192.168.1.104": {
             "ip": "192.168.1.104",
@@ -664,6 +841,7 @@ def generate_demo_topology() -> Dict:
             "method": "arp",
             "hop": 1,
             "node_type": "remote",
+            "device_type": "tv",
         },
         "192.168.1.105": {
             "ip": "192.168.1.105",
@@ -674,6 +852,7 @@ def generate_demo_topology() -> Dict:
             "method": "arp",
             "hop": 1,
             "node_type": "remote",
+            "device_type": "printer",
         },
         "192.168.1.106": {
             "ip": "192.168.1.106",
@@ -684,6 +863,7 @@ def generate_demo_topology() -> Dict:
             "method": "icmp",
             "hop": 1,
             "node_type": "remote",
+            "device_type": "raspberry_pi",
         },
         "10.0.0.10": {
             "ip": "10.0.0.10",
@@ -694,6 +874,7 @@ def generate_demo_topology() -> Dict:
             "method": "nmap",
             "hop": 2,
             "node_type": "remote",
+            "device_type": "server",
         },
         "10.0.0.20": {
             "ip": "10.0.0.20",
@@ -704,6 +885,7 @@ def generate_demo_topology() -> Dict:
             "method": "nmap",
             "hop": 2,
             "node_type": "remote",
+            "device_type": "server",
         },
         "10.0.0.30": {
             "ip": "10.0.0.30",
@@ -714,6 +896,7 @@ def generate_demo_topology() -> Dict:
             "method": "nmap",
             "hop": 2,
             "node_type": "remote",
+            "device_type": "server",
         },
         "10.0.1.10": {
             "ip": "10.0.1.10",
@@ -724,6 +907,7 @@ def generate_demo_topology() -> Dict:
             "method": "nmap",
             "hop": 3,
             "node_type": "remote",
+            "device_type": "server",
         },
         "10.0.1.11": {
             "ip": "10.0.1.11",
@@ -734,18 +918,20 @@ def generate_demo_topology() -> Dict:
             "method": "nmap",
             "hop": 3,
             "node_type": "remote",
+            "device_type": "server",
         },
     }
 
     links = [
-        # local → LAN
+        # local → gateway
         (local, gateway),
-        (local, "192.168.1.101"),
-        (local, "192.168.1.102"),
-        (local, "192.168.1.103"),
-        (local, "192.168.1.104"),
-        (local, "192.168.1.105"),
-        (local, "192.168.1.106"),
+        # gateway → LAN devices
+        (gateway, "192.168.1.101"),
+        (gateway, "192.168.1.102"),
+        (gateway, "192.168.1.103"),
+        (gateway, "192.168.1.104"),
+        (gateway, "192.168.1.105"),
+        (gateway, "192.168.1.106"),
         # gateway → remote servers (hop 2)
         (gateway, "10.0.0.10"),
         (gateway, "10.0.0.20"),
